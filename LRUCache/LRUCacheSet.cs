@@ -1,17 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace LRUCache
 {
-    public class LRUCacheSet<TCacheValue>
+    public class LRUCacheSet<TCacheKey, TCacheValue>
     {
         internal sealed class LinkedNode
         {
+            public TCacheKey Key { get; }
             public TCacheValue Value { get; }
 
-            public LinkedNode(TCacheValue value)
+            public LinkedNode(TCacheKey key, TCacheValue value)
             {
+                this.Key = key;
                 this.Value = value;
             }
 
@@ -19,67 +19,89 @@ namespace LRUCache
             internal LinkedNode Next { get; set; }
         }
 
-        Dictionary<TCacheValue, LinkedNode> valueMap = new Dictionary<TCacheValue, LinkedNode>();
-        LinkedNode head = null;
-        LinkedNode end = null;
+        private readonly Dictionary<TCacheKey, LinkedNode> valueMap = new Dictionary<TCacheKey, LinkedNode>();
+        private LinkedNode head = null;
+        private LinkedNode end = null;
+        private readonly int capccity;
 
-        public LRUCacheSet()
+        /// <summary>
+        /// LRU 缓存容器
+        /// </summary>
+        /// <param name="capccity">缓存容量</param>
+        public LRUCacheSet(int capccity = 100)
         {
+            this.capccity = capccity;
         }
 
         /// <summary>
         /// 添加元素
         /// </summary>
+        /// <param name="key"></param>
         /// <param name="value"></param>
+        /// <returns>可能删除的头结点</returns>
         /// <remarks>
         /// 如果链表头和尾为空，此时需要建立头和尾指向新建的节点
         /// 如果存在链表头和尾，将新节点追加到链表尾部
         /// </remarks>
-        public void Add(TCacheValue value)
+        public TCacheValue Add(TCacheKey key, TCacheValue value)
         {
-            if (valueMap.ContainsKey(value)) return;
-
-            var currentNode = new LinkedNode(value);
-            valueMap.Add(value, currentNode);
-
-            if (head == null)
+            if (this.valueMap.ContainsKey(key))
             {
-                head = currentNode;
-                end = head;
+                return default;
+            }
+
+            TCacheValue headValue = default;
+            if (this.valueMap.Count == this.capccity)
+            {
+                headValue = this.RemoveHead();
+            }
+
+            var currentNode = new LinkedNode(key, value);
+            this.valueMap.Add(key, currentNode);
+
+            if (this.head == null)
+            {
+                this.head = currentNode;
+                this.end = this.head;
             }
             else
             {
-                end.Next = currentNode;
-                end.Next.Previous = end;
-                end = end.Next;
+                this.end.Next = currentNode;
+                this.end.Next.Previous = this.end;
+                this.end = this.end.Next;
             }
+
+            return headValue;
         }
 
         /// <summary>
         /// 移除某个节点
         /// </summary>
-        /// <param name="value"></param>
+        /// <param name="key"></param>
         /// <remarks>
         /// 如果当前节点是头结点，则直接移除头结点（RemoveHead() 方法会处理只有一个节点的情况），
         /// 如果当前节点是尾结点，则直接移除尾结点
         /// 否则，则移除当前节点，并修复前后节点的引用
         /// </remarks>
-        public void Remove(TCacheValue value)
+        public void Remove(TCacheKey key)
         {
-            if (!valueMap.ContainsKey(value)) return;
-
-            var currentNode = valueMap[value];
-            valueMap.Remove(value);
-
-            if (head == currentNode)
+            if (!this.valueMap.ContainsKey(key))
             {
-                RemoveHead();
+                return;
             }
-            else if (end == currentNode)
+
+            var currentNode = this.valueMap[key];
+            this.valueMap.Remove(key);
+
+            if (this.head == currentNode)
             {
-                end = end.Previous;
-                end.Next.Previous = null;
-                end.Next = null;
+                this.RemoveHead();
+            }
+            else if (this.end == currentNode)
+            {
+                this.end = this.end.Previous;
+                this.end.Next.Previous = null;
+                this.end.Next = null;
             }
             else
             {
@@ -100,20 +122,24 @@ namespace LRUCache
         /// </remarks>
         public TCacheValue RemoveHead()
         {
-            if (head == null) return default;
-
-            var headValue = head.Value;
-            this.valueMap.Remove(headValue);
-            if (head == end)
+            if (this.head == null)
             {
-                head = null;
-                end = null;
+                return default;
+            }
+
+            var headKey = this.head.Key;
+            var headValue = this.valueMap[headKey].Value;
+            this.valueMap.Remove(headKey);
+            if (this.head == this.end)
+            {
+                this.head = null;
+                this.end = null;
             }
             else
             {
-                head = head.Next;
-                head.Previous.Next = null;
-                head.Next = null;
+                this.head = this.head.Next;
+                this.head.Previous.Next = null;
+                this.head.Next = null;
             }
 
             return headValue;
@@ -122,23 +148,30 @@ namespace LRUCache
         /// <summary>
         /// 最近使用了某个结点，将此节点移动到链表尾部
         /// </summary>
-        /// <param name="value"></param>
+        /// <param name="key"></param>
         /// <remarks>
         /// 如果当前节点是尾结点，不用移动
         /// 如果当前节点是头结点，将头指针后移，并将当前节点移动到链表尾部
         /// 否则，修复当前节点前后节点的引用，并将当前节点移动到链表尾部
         /// </remarks>
-        public void Use(TCacheValue value)
+        public TCacheValue Use(TCacheKey key)
         {
-            if (!this.valueMap.ContainsKey(value)) return;
-
-            var currentNode = this.valueMap[value];
-
-            if (end == currentNode) return;
-            if (currentNode == head)
+            if (!this.valueMap.ContainsKey(key))
             {
-                head = head.Next;
-                head.Previous = null;
+                return default;
+            }
+
+            var currentNode = this.valueMap[key];
+
+            if (this.end == currentNode)
+            {
+                return currentNode.Value;
+            }
+
+            if (currentNode == this.head)
+            {
+                this.head = this.head.Next;
+                this.head.Previous = null;
             }
             else
             {
@@ -146,10 +179,27 @@ namespace LRUCache
                 currentNode.Next.Previous = currentNode.Previous;
             }
 
-            end.Next = currentNode;
-            end.Next.Previous = end;
-            end = end.Next;
-            end.Next = null;
+            this.end.Next = currentNode;
+            this.end.Next.Previous = this.end;
+            this.end = this.end.Next;
+            this.end.Next = null;
+            return currentNode.Value;
+        }
+
+        /// <summary>
+        /// 获取链表的Key集合
+        /// </summary>
+        /// <returns></returns>
+        public List<TCacheKey> GetLinkedList()
+        {
+            var currentNode = head;
+            var result = new List<TCacheKey>();
+            while (currentNode != null)
+            {
+                result.Add(currentNode.Key);
+                currentNode = currentNode.Next;
+            }
+            return result;
         }
     }
 }
