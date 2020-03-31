@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace LRUCache
 {
@@ -7,7 +8,7 @@ namespace LRUCache
         internal sealed class LinkedNode
         {
             public TCacheKey Key { get; }
-            public TCacheValue Value { get; }
+            public TCacheValue Value { get; set; }
 
             public LinkedNode(TCacheKey key, TCacheValue value)
             {
@@ -23,6 +24,7 @@ namespace LRUCache
         private LinkedNode head = null;
         private LinkedNode end = null;
         private readonly int capccity;
+        public event EventHandler<string> Log;
 
         /// <summary>
         /// LRU 缓存容器
@@ -30,6 +32,12 @@ namespace LRUCache
         /// <param name="capccity">缓存容量</param>
         public LRUCacheSet(int capccity = 100)
         {
+            if (capccity < 1)
+            {
+                throw new ArgumentException(nameof(capccity));
+            }
+
+            Log?.Invoke(this, $"创建 LRU 缓存容器[{this.GetHashCode():X}]：Capacity={capccity}");
             this.capccity = capccity;
         }
 
@@ -47,18 +55,16 @@ namespace LRUCache
         {
             if (this.valueMap.ContainsKey(key))
             {
+                Log?.Invoke(this, $"覆盖已有的键：{key}={value}");
+                this.valueMap[key].Value = value;
                 return default;
             }
 
-            TCacheValue headValue = default;
-            if (this.valueMap.Count == this.capccity)
-            {
-                headValue = this.RemoveHead();
-            }
-
+            Log?.Invoke(this, $"新增缓存：{key}={value}");
             var currentNode = new LinkedNode(key, value);
             this.valueMap.Add(key, currentNode);
 
+            TCacheValue headValue = default;
             if (this.head == null)
             {
                 this.head = currentNode;
@@ -69,6 +75,12 @@ namespace LRUCache
                 this.end.Next = currentNode;
                 this.end.Next.Previous = this.end;
                 this.end = this.end.Next;
+
+                if (this.valueMap.Count > this.capccity)
+                {
+                    Log?.Invoke(this, $"缓存数量超过阈值...");
+                    headValue = this.RemoveHead();
+                }
             }
 
             return headValue;
@@ -79,7 +91,7 @@ namespace LRUCache
         /// </summary>
         /// <param name="key"></param>
         /// <remarks>
-        /// 如果当前节点是头结点，则直接移除头结点（RemoveHead() 方法会处理只有一个节点的情况），
+        /// 如果当前节点是头结点，则直接移除头结点
         /// 如果当前节点是尾结点，则直接移除尾结点
         /// 否则，则移除当前节点，并修复前后节点的引用
         /// </remarks>
@@ -87,15 +99,23 @@ namespace LRUCache
         {
             if (!this.valueMap.ContainsKey(key))
             {
+                Log?.Invoke(this, $"无法删除不存在的Key：{key}");
                 return;
             }
 
             var currentNode = this.valueMap[key];
             this.valueMap.Remove(key);
+            Log?.Invoke(this, $"删除缓存：{currentNode.Key}={currentNode.Value}");
 
-            if (this.head == currentNode)
+            if (this.head == this.end)
             {
-                this.RemoveHead();
+                this.head = null;
+                this.end = null;
+            }
+            else if (this.head == currentNode)
+            {
+                this.head = this.head.Next;
+                this.head.Previous.Next = null;
             }
             else if (this.end == currentNode)
             {
@@ -124,12 +144,15 @@ namespace LRUCache
         {
             if (this.head == null)
             {
+                Log?.Invoke(this, $"头结点为空，无需删除");
                 return default;
             }
 
             var headKey = this.head.Key;
             var headValue = this.valueMap[headKey].Value;
             this.valueMap.Remove(headKey);
+            Log?.Invoke(this, $"删除头结点：{headKey}={headValue}");
+
             if (this.head == this.end)
             {
                 this.head = null;
@@ -139,7 +162,6 @@ namespace LRUCache
             {
                 this.head = this.head.Next;
                 this.head.Previous.Next = null;
-                this.head.Next = null;
             }
 
             return headValue;
@@ -158,10 +180,12 @@ namespace LRUCache
         {
             if (!this.valueMap.ContainsKey(key))
             {
+                Log?.Invoke(this, $"使用Key不存在的缓存：{key}");
                 return default;
             }
 
             var currentNode = this.valueMap[key];
+            Log?.Invoke(this, $"使用缓存：{currentNode.Key}={currentNode.Value}");
 
             if (this.end == currentNode)
             {
@@ -187,18 +211,22 @@ namespace LRUCache
         }
 
         /// <summary>
-        /// 获取链表的Key集合
+        /// 获取Key集合
         /// </summary>
         /// <returns></returns>
-        public List<TCacheKey> GetLinkedList()
+        public List<TCacheKey> GetKeyList()
         {
-            var currentNode = head;
+            var currentNode = this.head;
             var result = new List<TCacheKey>();
             while (currentNode != null)
             {
                 result.Add(currentNode.Key);
                 currentNode = currentNode.Next;
             }
+
+            // Log?.Invoke(this, $"获取MapKey列表：\n\t{string.Join("\n\t", this.valueMap.Keys)}");
+            Log?.Invoke(this, $"获取链表Key列表：\n\t{string.Join("\n\t", result)}");
+
             return result;
         }
     }
