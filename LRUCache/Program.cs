@@ -1,14 +1,21 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace LRUCache
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Console.WriteLine("Hello World!");
             LRUCacheSet<int, string> cacheSet = new LRUCacheSet<int, string>(5);
             cacheSet.Log += (s, e) => Console.WriteLine(e);
+
+            Parallel.For(0, 100, (index) =>
+            {
+                cacheSet.Add(index, index.ToString());
+            });
+            _ = cacheSet.GetKeyList();
 
             for (int index = -5; index <= 5; index++)
             {

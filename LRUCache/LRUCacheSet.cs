@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace LRUCache
 {
@@ -25,6 +26,7 @@ namespace LRUCache
         private LinkedNode end = null;
         private readonly int capccity;
         public event EventHandler<string> Log;
+        private SpinLock spinLock = new SpinLock();
 
         /// <summary>
         /// LRU 缓存容器
@@ -53,6 +55,12 @@ namespace LRUCache
         /// </remarks>
         public TCacheValue Add(TCacheKey key, TCacheValue value)
         {
+            var lockSeed = false;
+            if (!this.spinLock.IsHeldByCurrentThread)
+            {
+                this.spinLock.Enter(ref lockSeed);
+            }
+
             if (this.valueMap.ContainsKey(key))
             {
                 Log?.Invoke(this, $"覆盖已有的键：{key}={value}");
@@ -82,6 +90,10 @@ namespace LRUCache
                     headValue = this.RemoveHead();
                 }
             }
+            if (lockSeed)
+            {
+                this.spinLock.Exit();
+            }
 
             return headValue;
         }
@@ -101,6 +113,12 @@ namespace LRUCache
             {
                 Log?.Invoke(this, $"无法删除不存在的Key：{key}");
                 return;
+            }
+
+            var lockSeed = false;
+            if (!this.spinLock.IsHeldByCurrentThread)
+            {
+                this.spinLock.Enter(ref lockSeed);
             }
 
             var currentNode = this.valueMap[key];
@@ -130,6 +148,10 @@ namespace LRUCache
                 currentNode.Previous = null;
                 currentNode.Next = null;
             }
+            if (lockSeed)
+            {
+                this.spinLock.Exit();
+            }
         }
 
         /// <summary>
@@ -148,6 +170,12 @@ namespace LRUCache
                 return default;
             }
 
+            var lockSeed = false;
+            if (!this.spinLock.IsHeldByCurrentThread)
+            {
+                this.spinLock.Enter(ref lockSeed);
+            }
+
             var headKey = this.head.Key;
             var headValue = this.valueMap[headKey].Value;
             this.valueMap.Remove(headKey);
@@ -162,6 +190,10 @@ namespace LRUCache
             {
                 this.head = this.head.Next;
                 this.head.Previous.Next = null;
+            }
+            if (lockSeed)
+            {
+                this.spinLock.Exit();
             }
 
             return headValue;
@@ -182,6 +214,12 @@ namespace LRUCache
             {
                 Log?.Invoke(this, $"使用Key不存在的缓存：{key}");
                 return default;
+            }
+
+            var lockSeed = false;
+            if (!this.spinLock.IsHeldByCurrentThread)
+            {
+                this.spinLock.Enter(ref lockSeed);
             }
 
             var currentNode = this.valueMap[key];
@@ -207,6 +245,11 @@ namespace LRUCache
             this.end.Next.Previous = this.end;
             this.end = this.end.Next;
             this.end.Next = null;
+            if (lockSeed)
+            {
+                this.spinLock.Exit();
+            }
+
             return currentNode.Value;
         }
 
@@ -216,12 +259,22 @@ namespace LRUCache
         /// <returns></returns>
         public List<TCacheKey> GetKeyList()
         {
+            var lockSeed = false;
+            if (!this.spinLock.IsHeldByCurrentThread)
+            {
+                this.spinLock.Enter(ref lockSeed);
+            }
+
             var currentNode = this.head;
             var result = new List<TCacheKey>();
             while (currentNode != null)
             {
                 result.Add(currentNode.Key);
                 currentNode = currentNode.Next;
+            }
+            if (lockSeed)
+            {
+                this.spinLock.Exit();
             }
 
             // Log?.Invoke(this, $"获取MapKey列表：\n\t{string.Join("\n\t", this.valueMap.Keys)}");
