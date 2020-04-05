@@ -24,23 +24,23 @@ namespace LRUCache
         private readonly Dictionary<TCacheKey, LinkedNode> valueMap = new Dictionary<TCacheKey, LinkedNode>();
         private LinkedNode head = null;
         private LinkedNode end = null;
-        private readonly int capccity;
+        private readonly int capacity;
         public event EventHandler<string> Log;
         private SpinLock spinLock = new SpinLock();
 
         /// <summary>
         /// LRU 缓存容器
         /// </summary>
-        /// <param name="capccity">缓存容量</param>
-        public LRUCacheSet(int capccity = 100)
+        /// <param name="capacity">缓存容量</param>
+        public LRUCacheSet(int capacity = 100)
         {
-            if (capccity < 1)
+            if (capacity < 1)
             {
-                throw new ArgumentException(nameof(capccity));
+                throw new ArgumentException(nameof(capacity));
             }
 
-            Log?.Invoke(this, $"创建 LRU 缓存容器[{this.GetHashCode():X}]：Capacity={capccity}");
-            this.capccity = capccity;
+            Log?.Invoke(this, $"创建 LRU 缓存容器[{this.GetHashCode():X}]：Capacity={capacity}");
+            this.capacity = capacity;
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace LRUCache
                 this.end.Next.Previous = this.end;
                 this.end = this.end.Next;
 
-                if (this.valueMap.Count > this.capccity)
+                if (this.valueMap.Count > this.capacity)
                 {
                     Log?.Invoke(this, $"缓存数量超过阈值...");
                     headValue = this.RemoveHead();
@@ -203,6 +203,7 @@ namespace LRUCache
         /// 最近使用了某个结点，将此节点移动到链表尾部
         /// </summary>
         /// <param name="key"></param>
+        /// <returns></returns>
         /// <remarks>
         /// 如果当前节点是尾结点，不用移动
         /// 如果当前节点是头结点，将头指针后移，并将当前节点移动到链表尾部
