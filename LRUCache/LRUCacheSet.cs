@@ -61,16 +61,42 @@ namespace LRUCache
                 this.spinLock.Enter(ref lockSeed);
             }
 
+            LinkedNode currentNode = null;
             if (this.valueMap.ContainsKey(key))
             {
                 Log?.Invoke(this, $"覆盖已有的键：{key}={value}");
-                this.valueMap[key].Value = value;
-                return default;
+                currentNode = this.valueMap[key];
+                currentNode.Value = value;
+                if (this.head == this.end)
+                {
+                    this.head = null;
+                    this.end = null;
+                }
+                else if (this.head == currentNode)
+                {
+                    this.head = this.head.Next;
+                    this.head.Previous.Next = null;
+                }
+                else if (this.end == currentNode)
+                {
+                    this.end = this.end.Previous;
+                    this.end.Next.Previous = null;
+                    this.end.Next = null;
+                }
+                else
+                {
+                    currentNode.Next.Previous = currentNode.Previous;
+                    currentNode.Previous.Next = currentNode.Next;
+                    currentNode.Previous = null;
+                    currentNode.Next = null;
+                }
             }
-
-            Log?.Invoke(this, $"新增缓存：{key}={value}");
-            var currentNode = new LinkedNode(key, value);
-            this.valueMap.Add(key, currentNode);
+            else
+            {
+                Log?.Invoke(this, $"新增缓存：{key}={value}");
+                currentNode = new LinkedNode(key, value);
+                this.valueMap.Add(key, currentNode);
+            }
 
             TCacheValue headValue = default;
             if (this.head == null)
