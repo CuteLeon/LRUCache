@@ -25,16 +25,20 @@ namespace LRUCache
 
             cacheSet.Remove(-1);
 
-            cacheSet.Use(1);
+            cacheSet.Get(1);
             _ = cacheSet.GetKeyList();
 
             cacheSet.Add(6, "6");
             _ = cacheSet.GetKeyList();
 
-            cacheSet.Use(5);
+            cacheSet.Add(1, "0");
             _ = cacheSet.GetKeyList();
 
-            cacheSet.Use(2);
+            cacheSet.Get(5);
+            _ = cacheSet.GetKeyList();
+
+
+            cacheSet.Get(2);
             _ = cacheSet.GetKeyList();
 
             cacheSet.Remove(3);
@@ -44,10 +48,7 @@ namespace LRUCache
             cacheSet.RemoveHead();
             _ = cacheSet.GetKeyList();
 
-            cacheSet.Add(1, "0");
-            cacheSet.Use(1);
             cacheSet.Add(1, "1");
-            cacheSet.Use(1);
             _ = cacheSet.GetKeyList();
 
             Console.Read();

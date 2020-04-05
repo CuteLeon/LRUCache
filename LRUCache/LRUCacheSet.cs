@@ -43,6 +43,8 @@ namespace LRUCache
             this.capacity = capacity;
         }
 
+        #region 缓存操作
+
         /// <summary>
         /// 添加元素
         /// </summary>
@@ -67,29 +69,7 @@ namespace LRUCache
                 Log?.Invoke(this, $"覆盖已有的键：{key}={value}");
                 currentNode = this.valueMap[key];
                 currentNode.Value = value;
-                if (this.head == this.end)
-                {
-                    this.head = null;
-                    this.end = null;
-                }
-                else if (this.head == currentNode)
-                {
-                    this.head = this.head.Next;
-                    this.head.Previous.Next = null;
-                }
-                else if (this.end == currentNode)
-                {
-                    this.end = this.end.Previous;
-                    this.end.Next.Previous = null;
-                    this.end.Next = null;
-                }
-                else
-                {
-                    currentNode.Next.Previous = currentNode.Previous;
-                    currentNode.Previous.Next = currentNode.Next;
-                    currentNode.Previous = null;
-                    currentNode.Next = null;
-                }
+                RemoveNode(currentNode);
             }
             else
             {
@@ -98,24 +78,7 @@ namespace LRUCache
                 this.valueMap.Add(key, currentNode);
             }
 
-            TCacheValue headValue = default;
-            if (this.head == null)
-            {
-                this.head = currentNode;
-                this.end = this.head;
-            }
-            else
-            {
-                this.end.Next = currentNode;
-                this.end.Next.Previous = this.end;
-                this.end = this.end.Next;
-
-                if (this.valueMap.Count > this.capacity)
-                {
-                    Log?.Invoke(this, $"缓存数量超过阈值...");
-                    headValue = this.RemoveHead();
-                }
-            }
+            TCacheValue headValue = AppendNodeToEnd(currentNode);
             if (lockSeed)
             {
                 this.spinLock.Exit();
@@ -125,7 +88,7 @@ namespace LRUCache
         }
 
         /// <summary>
-        /// 移除某个节点
+        /// 移除元素
         /// </summary>
         /// <param name="key"></param>
         /// <remarks>
@@ -151,29 +114,7 @@ namespace LRUCache
             this.valueMap.Remove(key);
             Log?.Invoke(this, $"删除缓存：{currentNode.Key}={currentNode.Value}");
 
-            if (this.head == this.end)
-            {
-                this.head = null;
-                this.end = null;
-            }
-            else if (this.head == currentNode)
-            {
-                this.head = this.head.Next;
-                this.head.Previous.Next = null;
-            }
-            else if (this.end == currentNode)
-            {
-                this.end = this.end.Previous;
-                this.end.Next.Previous = null;
-                this.end.Next = null;
-            }
-            else
-            {
-                currentNode.Next.Previous = currentNode.Previous;
-                currentNode.Previous.Next = currentNode.Next;
-                currentNode.Previous = null;
-                currentNode.Next = null;
-            }
+            RemoveNode(currentNode);
             if (lockSeed)
             {
                 this.spinLock.Exit();
@@ -207,16 +148,7 @@ namespace LRUCache
             this.valueMap.Remove(headKey);
             Log?.Invoke(this, $"删除头结点：{headKey}={headValue}");
 
-            if (this.head == this.end)
-            {
-                this.head = null;
-                this.end = null;
-            }
-            else
-            {
-                this.head = this.head.Next;
-                this.head.Previous.Next = null;
-            }
+            RemoveNode(head);
             if (lockSeed)
             {
                 this.spinLock.Exit();
@@ -226,7 +158,7 @@ namespace LRUCache
         }
 
         /// <summary>
-        /// 最近使用了某个结点，将此节点移动到链表尾部
+        /// 获取缓存
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
@@ -235,7 +167,7 @@ namespace LRUCache
         /// 如果当前节点是头结点，将头指针后移，并将当前节点移动到链表尾部
         /// 否则，修复当前节点前后节点的引用，并将当前节点移动到链表尾部
         /// </remarks>
-        public TCacheValue Use(TCacheKey key)
+        public TCacheValue Get(TCacheKey key)
         {
             if (!this.valueMap.ContainsKey(key))
             {
@@ -257,27 +189,78 @@ namespace LRUCache
                 return currentNode.Value;
             }
 
-            if (currentNode == this.head)
-            {
-                this.head = this.head.Next;
-                this.head.Previous = null;
-            }
-            else
-            {
-                currentNode.Previous.Next = currentNode.Next;
-                currentNode.Next.Previous = currentNode.Previous;
-            }
-
-            this.end.Next = currentNode;
-            this.end.Next.Previous = this.end;
-            this.end = this.end.Next;
-            this.end.Next = null;
+            RemoveNode(currentNode);
+            AppendNodeToEnd(currentNode);
             if (lockSeed)
             {
                 this.spinLock.Exit();
             }
 
             return currentNode.Value;
+        }
+        #endregion
+
+        #region 链表操作
+
+        /// <summary>
+        /// 从链表移除一个节点
+        /// </summary>
+        /// <param name="currentNode"></param>
+        private void RemoveNode(LinkedNode currentNode)
+        {
+            if (this.head == this.end)
+            {
+                this.head = null;
+                this.end = null;
+            }
+            else if (this.head == currentNode)
+            {
+                this.head = this.head.Next;
+                this.head.Previous.Next = null;
+            }
+            else if (this.end == currentNode)
+            {
+                this.end = this.end.Previous;
+                this.end.Next.Previous = null;
+                this.end.Next = null;
+            }
+            else
+            {
+                currentNode.Next.Previous = currentNode.Previous;
+                currentNode.Previous.Next = currentNode.Next;
+                currentNode.Previous = null;
+                currentNode.Next = null;
+            }
+        }
+
+        /// <summary>
+        /// 将节点追加到链表尾部
+        /// </summary>
+        /// <param name="currentNode"></param>
+        /// <returns>可能删除的头部节点</returns>
+        private TCacheValue AppendNodeToEnd(LinkedNode currentNode)
+        {
+            TCacheValue headValue = default;
+            if (this.head == null)
+            {
+                this.head = currentNode;
+                this.end = this.head;
+            }
+            else
+            {
+                this.end.Next = currentNode;
+                this.end.Next.Previous = this.end;
+                this.end = this.end.Next;
+                this.end.Next = null;
+
+                if (this.valueMap.Count > this.capacity)
+                {
+                    Log?.Invoke(this, $"缓存数量超过阈值...");
+                    headValue = this.RemoveHead();
+                }
+            }
+
+            return headValue;
         }
 
         /// <summary>
@@ -309,5 +292,6 @@ namespace LRUCache
 
             return result;
         }
+        #endregion
     }
 }
